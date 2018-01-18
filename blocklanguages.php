@@ -109,6 +109,6 @@ class BlockLanguages extends Module
 
     public function hookDisplayHeader($params)
     {
-        $this->context->controller->addCSS($this->_path . 'blocklanguages.css', 'all');
+        $this->context->controller->addCSS($this->_path . 'views/css/blocklanguages.css', 'all');
     }
 }
