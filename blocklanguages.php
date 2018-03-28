@@ -62,20 +62,33 @@ class BlockLanguages extends Module
             JOIN `'._DB_PREFIX_.'lang_shop` as ls ON l.`id_lang` = ls.`id_lang`
             WHERE l.`active` = 1 GROUP BY ls.`id_shop` ORDER BY l.`id_lang`';
 
-        $shop_for_language = array();
+        $shop_for_lang = array();
         $set = Db::getInstance()->executeS($sql);
         foreach ($set as $record) {
             $shop_for_lang[(string)$record['id_lang']] = (int)$record['id_shop'];
         }
 
+        $lang_urls = array();
         $controller = Dispatcher::getInstance()->getController();
 
         if ((int)Configuration::get('PS_REWRITING_SETTINGS')) {
-            $default_rewrite = array();
-            if ($controller == 'product' && ($id_product = (int)Tools::getValue('id_product'))) {
+            $id_product = (int)Tools::getValue('id_product');
+            $id_category = (int)Tools::getValue('id_category');
+            $id_cms = (int)Tools::getValue('id_cms');
+            $id_cms_category = (int)Tools::getValue('id_cms_category');
+
+            if ($controller == 'product' && $id_product) {
                 $rewrite_infos = Product::getUrlRewriteInformations((int)$id_product);
                 foreach ($rewrite_infos as $infos) {
-                    $default_rewrite[$infos['id_lang']] = $link->getProductLink(
+                    $active = Db::getInstance()->getValue(
+                        'SELECT `active` FROM `'._DB_PREFIX_.'product_shop` WHERE `id_product` = ' . (int)$id_product .
+                        ' AND `id_shop` = ' . (int)$shop_for_lang[$infos['id_lang']]
+                    );
+                    if (!$active) {
+                        $lang_urls[$infos['id_lang']] = false;
+                        continue;
+                    }
+                    $lang_urls[$infos['id_lang']] = $link->getProductLink(
                         (int)$id_product,
                         $infos['link_rewrite'],
                         $infos['category_rewrite'],
@@ -84,10 +97,19 @@ class BlockLanguages extends Module
                         $shop_for_lang[$infos['id_lang']]
                     );
                 }
-            } elseif ($controller == 'category' && ($id_category = (int)Tools::getValue('id_category'))) {
+            } elseif ($controller == 'category' && $id_category) {
                 $rewrite_infos = Category::getUrlRewriteInformations((int)$id_category);
+
                 foreach ($rewrite_infos as $infos) {
-                    $default_rewrite[$infos['id_lang']] = $link->getCategoryLink(
+                    $active = Db::getInstance()->getValue(
+                        'SELECT COUNT(*) > 0 as `active` FROM `'._DB_PREFIX_.'category_shop` WHERE `id_category` = ' . (int)$id_category .
+                        ' AND `id_shop` = ' . (int)$shop_for_lang[$infos['id_lang']]
+                    );
+                    if (!$active) {
+                        $lang_urls[$infos['id_lang']] = false;
+                        continue;
+                    }
+                    $lang_urls[$infos['id_lang']]  = $link->getCategoryLink(
                         (int)$id_category,
                         $infos['link_rewrite'],
                         $infos['id_lang'],
@@ -95,23 +117,34 @@ class BlockLanguages extends Module
                         $shop_for_lang[$infos['id_lang']]
                     );
                 }
-            } elseif ($controller == 'cms' && (($id_cms = (int)Tools::getValue('id_cms')) || ($id_cms_category = (int)Tools::getValue('id_cms_category')))) {
-                $rewrite_infos = (isset($id_cms) && !isset($id_cms_category)) ? CMS::getUrlRewriteInformations($id_cms) : CMSCategory::getUrlRewriteInformations($id_cms_category);
+            } elseif ($controller == 'cms' && ($id_cms || $id_cms_category)) {
+                $rewrite_infos = ($id_cms && !$id_cms_category) ? CMS::getUrlRewriteInformations($id_cms) : CMSCategory::getUrlRewriteInformations($id_cms_category);
                 foreach ($rewrite_infos as $infos) {
-                    $arr_link = (isset($id_cms) && !isset($id_cms_category)) ?
-                        $link->getCMSLink($id_cms, $infos['link_rewrite'], null, $infos['id_lang'], $shop_for_lang[$infos['id_lang']]) :
-                        $link->getCMSCategoryLink($id_cms_category, $infos['link_rewrite'], $infos['id_lang'], $shop_for_lang[$infos['id_lang']]);
-                    $default_rewrite[$infos['id_lang']] = $arr_link;
+                    $active = $id_cms
+                        ? Db::getInstance()->getValue(
+                            'SELECT COUNT(*) > 0 as `active` FROM `'._DB_PREFIX_.'cms_shop` WHERE `id_cms` = ' . (int)$id_cms .
+                            ' AND `id_shop` = ' . (int)$shop_for_lang[$infos['id_lang']]
+                        )
+                        : Db::getInstance()->getValue(
+                            'SELECT COUNT(*) > 0 as `active` FROM `'._DB_PREFIX_.'cms_category_shop` WHERE `id_cms_category` = ' . (int)$id_cms_category .
+                            ' AND `id_shop` = ' . (int)$shop_for_lang[$infos['id_lang']]
+                        );
+                    if (!$active) {
+                        $lang_urls[$infos['id_lang']] = false;
+                        continue;
+                    }
+                    $lang_urls[$infos['id_lang']] = $id_cms
+                        ? $link->getCMSLink($id_cms, $infos['link_rewrite'], null, $infos['id_lang'], $shop_for_lang[$infos['id_lang']])
+                        : $link->getCMSCategoryLink($id_cms_category, $infos['link_rewrite'], $infos['id_lang'], $shop_for_lang[$infos['id_lang']]);
                 }
             } else {
                 foreach ($shop_for_lang as $id_lang => $id_shop) {
-                    $default_rewrite[$id_lang] = $link->getPageLink($controller, null, $id_lang, null, false, $id_shop);
+                    $lang_urls[$id_lang] = $link->getPageLink($controller, null, $id_lang, null, false, $id_shop);
                 }
-
             }
-            $this->smarty->assign('lang_rewrite_urls', $default_rewrite);
         }
 
+        $this->smarty->assign('lang_rewrite_urls', $lang_urls);
         $this->context->smarty->assign('shop_languages', $languages);
 
         return true;
