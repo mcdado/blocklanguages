@@ -58,8 +58,17 @@ class BlockLanguages extends Module
         }
         $link = new Link();
 
-        $sql = 'SELECT l.`id_lang`, ls.`id_shop` FROM `'._DB_PREFIX_.'lang` as l
-            JOIN `'._DB_PREFIX_.'lang_shop` as ls ON l.`id_lang` = ls.`id_lang`
+        $lang_blocklist = array("4"); // Español (Spanish)
+
+        // Remove unwanted languages from the list
+        foreach ($languages as $key => $language) {
+            if (in_array((string)$language['id_lang'], $lang_blocklist)) {
+                unset($languages[$key]);
+            }
+        }
+
+        $sql = 'SELECT l.`id_lang`, ls.`id_shop` FROM `' . _DB_PREFIX_ . 'lang` as l
+            JOIN `' . _DB_PREFIX_ . 'lang_shop` as ls ON l.`id_lang` = ls.`id_lang`
             WHERE l.`active` = 1 GROUP BY ls.`id_shop` ORDER BY l.`id_lang`';
 
         $shop_for_lang = array();
@@ -81,8 +90,8 @@ class BlockLanguages extends Module
                 $rewrite_infos = Product::getUrlRewriteInformations((int)$id_product);
                 foreach ($rewrite_infos as $infos) {
                     $active = Db::getInstance()->getValue(
-                        'SELECT `active` FROM `'._DB_PREFIX_.'product_shop` WHERE `id_product` = ' . (int)$id_product .
-                        ' AND `id_shop` = ' . (int)$shop_for_lang[$infos['id_lang']]
+                        'SELECT `active` FROM `' . _DB_PREFIX_ . 'product_shop` WHERE `id_product` = ' . (int)$id_product .
+                            ' AND `id_shop` = ' . (int)$shop_for_lang[$infos['id_lang']]
                     );
                     if (!$active) {
                         $lang_urls[$infos['id_lang']] = false;
@@ -102,8 +111,8 @@ class BlockLanguages extends Module
 
                 foreach ($rewrite_infos as $infos) {
                     $active = Db::getInstance()->getValue(
-                        'SELECT COUNT(*) > 0 as `active` FROM `'._DB_PREFIX_.'category_shop` WHERE `id_category` = ' . (int)$id_category .
-                        ' AND `id_shop` = ' . (int)$shop_for_lang[$infos['id_lang']]
+                        'SELECT COUNT(*) > 0 as `active` FROM `' . _DB_PREFIX_ . 'category_shop` WHERE `id_category` = ' . (int)$id_category .
+                            ' AND `id_shop` = ' . (int)$shop_for_lang[$infos['id_lang']]
                     );
                     if (!$active) {
                         $lang_urls[$infos['id_lang']] = false;
@@ -122,12 +131,12 @@ class BlockLanguages extends Module
                 foreach ($rewrite_infos as $infos) {
                     $active = $id_cms
                         ? Db::getInstance()->getValue(
-                            'SELECT COUNT(*) > 0 as `active` FROM `'._DB_PREFIX_.'cms_shop` WHERE `id_cms` = ' . (int)$id_cms .
-                            ' AND `id_shop` = ' . (int)$shop_for_lang[$infos['id_lang']]
+                            'SELECT COUNT(*) > 0 as `active` FROM `' . _DB_PREFIX_ . 'cms_shop` WHERE `id_cms` = ' . (int)$id_cms .
+                                ' AND `id_shop` = ' . (int)$shop_for_lang[$infos['id_lang']]
                         )
                         : Db::getInstance()->getValue(
-                            'SELECT COUNT(*) > 0 as `active` FROM `'._DB_PREFIX_.'cms_category_shop` WHERE `id_cms_category` = ' . (int)$id_cms_category .
-                            ' AND `id_shop` = ' . (int)$shop_for_lang[$infos['id_lang']]
+                            'SELECT COUNT(*) > 0 as `active` FROM `' . _DB_PREFIX_ . 'cms_category_shop` WHERE `id_cms_category` = ' . (int)$id_cms_category .
+                                ' AND `id_shop` = ' . (int)$shop_for_lang[$infos['id_lang']]
                         );
                     if (!$active) {
                         $lang_urls[$infos['id_lang']] = false;
