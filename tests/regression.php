@@ -50,4 +50,7 @@ expectSame(array(2 => 1, 3 => 1), $module->shops(), 'Several languages per shop;
 expectSame(false, $module->urls('category', array('id_category' => 54))[4], 'Unmapped language explicitly excluded');
 $module->context->controller->errors = array('404');
 expectSame(null, $module->hookDisplayHeader(array()), 'Error pages must not emit alternates');
+$module->context->controller->errors = array();
+$module->context->controller->php_self = 'pagenotfound';
+expectSame(null, $module->hookDisplayHeader(array()), 'The 404 controller must not emit alternates even without controller errors');
 echo "blocklanguages regression checks passed\n";

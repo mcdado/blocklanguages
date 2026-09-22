@@ -226,7 +226,9 @@ class BlockLanguages extends Module
 
     public function hookDisplayHeader($params)
     {
-        if (!empty($this->context->controller->errors)) {
+        // PageNotFoundController returns HTTP 404 without populating errors.
+        if ($this->context->controller->php_self === 'pagenotfound'
+            || !empty($this->context->controller->errors)) {
             return;
         }
         $this->context->controller->addCSS($this->_path . 'views/css/blocklanguages.css', 'all');
