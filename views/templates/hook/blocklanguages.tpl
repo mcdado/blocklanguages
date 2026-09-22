@@ -24,11 +24,11 @@
 *}
 
 <!-- Block languages module -->
-{if count($languages) > 1}
+{if count($shop_languages) > 1}
 <div id="languages_block_top">
   <div id="countries">
   {* @todo fix display current languages, removing the first foreach loop *}
-{foreach from=$languages key=k item=language name="languages"}
+{foreach from=$shop_languages key=k item=language name="languages"}
   {if $language.iso_code == $lang_iso}
     <p class="selected_language">
       <img src="{$img_lang_dir}{$language.id_lang}.jpg" alt="{$language.iso_code|escape:'html':'UTF-8'}" width="16" height="11" />
@@ -36,22 +36,19 @@
   {/if}
 {/foreach}
     <ul id="first-languages" class="countries_ul">
-    {foreach from=$languages key=k item=language name="languages"}
+    {foreach from=$shop_languages key=k item=language name="languages"}
+      {assign var=indice_lang value=$language.id_lang}
+      {if !empty($lang_rewrite_urls.$indice_lang)}
       <li {if $language.iso_code == $lang_iso}class="selected_language"{/if}>
       {if $language.iso_code != $lang_iso}
-        {assign var=indice_lang value=$language.id_lang}
-        {if isset($lang_rewrite_urls.$indice_lang)}
-          <a href="{$lang_rewrite_urls.$indice_lang|escape:htmlall}" title="{$language.name|escape:'html':'UTF-8'}" rel="alternate" hreflang="{$language.iso_code|escape:'html':'UTF-8'}">
-        {else}
-          <a href="{$link->getLanguageLink($language.id_lang)|escape:htmlall}" title="{$language.name|escape:'html':'UTF-8'}" rel="alternate" hreflang="{$language.iso_code|escape:'html':'UTF-8'}">
-
-        {/if}
+        <a href="{$lang_rewrite_urls.$indice_lang|escape:htmlall}" title="{$language.name|escape:'html':'UTF-8'}" rel="alternate" hreflang="{$language.iso_code|escape:'html':'UTF-8'}">
       {/if}
           <img src="{$img_lang_dir}{$language.id_lang}.jpg" alt="{$language.iso_code|escape:'html':'UTF-8'}" width="16" height="11" />
       {if $language.iso_code != $lang_iso}
         </a>
       {/if}
       </li>
+      {/if}
     {/foreach}
     </ul>
   </div>

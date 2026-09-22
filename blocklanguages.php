@@ -56,91 +56,25 @@ class BlockLanguages extends Module
         if (!count($languages)) {
             return false;
         }
+
         $link = new Link();
-
-        $sql = 'SELECT l.`id_lang`, ls.`id_shop` FROM `'._DB_PREFIX_.'lang` as l
-            JOIN `'._DB_PREFIX_.'lang_shop` as ls ON l.`id_lang` = ls.`id_lang`
-            WHERE l.`active` = 1 GROUP BY ls.`id_shop` ORDER BY l.`id_lang`';
-
-        $shop_for_lang = array();
-        $set = Db::getInstance()->executeS($sql);
-        foreach ($set as $record) {
-            $shop_for_lang[(string)$record['id_lang']] = (int)$record['id_shop'];
-        }
+        $shop_for_lang = $this->getLanguageShops();
+        // Dispatcher returns class names such as "bestsales"; URL routes use
+        // the controller's php_self ("best-sales", "new-products", etc.).
+        $controller = !empty($this->context->controller->php_self)
+            ? $this->context->controller->php_self
+            : Dispatcher::getInstance()->getController();
 
         $lang_urls = array();
-        $controller = Dispatcher::getInstance()->getController();
-
-        if ((int)Configuration::get('PS_REWRITING_SETTINGS')) {
-            $id_product = (int)Tools::getValue('id_product');
-            $id_category = (int)Tools::getValue('id_category');
-            $id_cms = (int)Tools::getValue('id_cms');
-            $id_cms_category = (int)Tools::getValue('id_cms_category');
-
-            if ($controller == 'product' && $id_product) {
-                $rewrite_infos = Product::getUrlRewriteInformations((int)$id_product);
-                foreach ($rewrite_infos as $infos) {
-                    $active = Db::getInstance()->getValue(
-                        'SELECT `active` FROM `'._DB_PREFIX_.'product_shop` WHERE `id_product` = ' . (int)$id_product .
-                        ' AND `id_shop` = ' . (int)$shop_for_lang[$infos['id_lang']]
-                    );
-                    if (!$active) {
-                        $lang_urls[$infos['id_lang']] = false;
-                        continue;
-                    }
-                    $lang_urls[$infos['id_lang']] = $link->getProductLink(
-                        (int)$id_product,
-                        $infos['link_rewrite'],
-                        $infos['category_rewrite'],
-                        $infos['ean13'],
-                        (int)$infos['id_lang'],
-                        $shop_for_lang[$infos['id_lang']]
-                    );
-                }
-            } elseif ($controller == 'category' && $id_category) {
-                $rewrite_infos = Category::getUrlRewriteInformations((int)$id_category);
-
-                foreach ($rewrite_infos as $infos) {
-                    $active = Db::getInstance()->getValue(
-                        'SELECT COUNT(*) > 0 as `active` FROM `'._DB_PREFIX_.'category_shop` WHERE `id_category` = ' . (int)$id_category .
-                        ' AND `id_shop` = ' . (int)$shop_for_lang[$infos['id_lang']]
-                    );
-                    if (!$active) {
-                        $lang_urls[$infos['id_lang']] = false;
-                        continue;
-                    }
-                    $lang_urls[$infos['id_lang']]  = $link->getCategoryLink(
-                        (int)$id_category,
-                        $infos['link_rewrite'],
-                        $infos['id_lang'],
-                        null,
-                        $shop_for_lang[$infos['id_lang']]
-                    );
-                }
-            } elseif ($controller == 'cms' && ($id_cms || $id_cms_category)) {
-                $rewrite_infos = ($id_cms && !$id_cms_category) ? CMS::getUrlRewriteInformations($id_cms) : CMSCategory::getUrlRewriteInformations($id_cms_category);
-                foreach ($rewrite_infos as $infos) {
-                    $active = $id_cms
-                        ? Db::getInstance()->getValue(
-                            'SELECT COUNT(*) > 0 as `active` FROM `'._DB_PREFIX_.'cms_shop` WHERE `id_cms` = ' . (int)$id_cms .
-                            ' AND `id_shop` = ' . (int)$shop_for_lang[$infos['id_lang']]
-                        )
-                        : Db::getInstance()->getValue(
-                            'SELECT COUNT(*) > 0 as `active` FROM `'._DB_PREFIX_.'cms_category_shop` WHERE `id_cms_category` = ' . (int)$id_cms_category .
-                            ' AND `id_shop` = ' . (int)$shop_for_lang[$infos['id_lang']]
-                        );
-                    if (!$active) {
-                        $lang_urls[$infos['id_lang']] = false;
-                        continue;
-                    }
-                    $lang_urls[$infos['id_lang']] = $id_cms
-                        ? $link->getCMSLink($id_cms, $infos['link_rewrite'], null, $infos['id_lang'], $shop_for_lang[$infos['id_lang']])
-                        : $link->getCMSCategoryLink($id_cms_category, $infos['link_rewrite'], $infos['id_lang'], $shop_for_lang[$infos['id_lang']]);
-                }
-            } else {
-                foreach ($shop_for_lang as $id_lang => $id_shop) {
-                    $lang_urls[$id_lang] = $link->getPageLink($controller, null, $id_lang, null, false, $id_shop);
-                }
+        foreach ($languages as $language) {
+            $id_lang = (int)$language['id_lang'];
+            // Explicit false prevents templates from inventing an alternate
+            // in the current shop when the destination is unavailable.
+            $lang_urls[$id_lang] = false;
+            if (isset($shop_for_lang[$id_lang])) {
+                $lang_urls[$id_lang] = $this->getAlternateUrl(
+                    $link, $controller, $id_lang, $shop_for_lang[$id_lang]
+                );
             }
         }
 
@@ -148,6 +82,127 @@ class BlockLanguages extends Module
         $this->context->smarty->assign('shop_languages', $languages);
 
         return true;
+    }
+
+    /**
+     * Choose a stable destination per language, independent of the source shop.
+     * Do not GROUP BY shop: a shop may support more than one language.
+     *
+     * @return array Language ID => shop ID
+     */
+    protected function getLanguageShops()
+    {
+        $rows = Db::getInstance()->executeS(
+            'SELECT l.`id_lang`, ls.`id_shop` FROM `'._DB_PREFIX_.'lang` l
+            JOIN `'._DB_PREFIX_.'lang_shop` ls ON ls.`id_lang` = l.`id_lang`
+            JOIN `'._DB_PREFIX_.'shop` s ON s.`id_shop` = ls.`id_shop`
+            WHERE l.`active` = 1 AND s.`active` = 1 AND s.`deleted` = 0
+            ORDER BY l.`id_lang`, ls.`id_shop`'
+        );
+        $shops = array();
+        foreach ($rows as $row) {
+            if (!isset($shops[(int)$row['id_lang']])) {
+                $shops[(int)$row['id_lang']] = (int)$row['id_shop'];
+            }
+        }
+        return $shops;
+    }
+
+    /**
+     * Load localized objects in the destination shop, not the current context.
+     * The same IDs connect translations; absent/inactive versions stay absent.
+     *
+     * @param Link $link
+     * @param string $controller Canonical route name
+     * @param int $id_lang
+     * @param int $id_shop
+     * @return string|false
+     */
+    protected function getAlternateUrl($link, $controller, $id_lang, $id_shop)
+    {
+        switch ($controller) {
+            case 'product':
+                $id = (int)Tools::getValue('id_product');
+                if (!$id) {
+                    return false;
+                }
+                $product = new Product($id, false, $id_lang, $id_shop);
+                if (!$this->isAvailable($product, $id_shop)) {
+                    return false;
+                }
+                // Product::__construct() resolves category via the current shop,
+                // and Link prefers product->category over its category argument.
+                $category = new Category((int)$product->id_category_default, $id_lang, $id_shop);
+                if (!Validate::isLoadedObject($category) || empty($category->link_rewrite)) {
+                    return false;
+                }
+                $product->category = $category->link_rewrite;
+                return $link->getProductLink($product, null, null, null, $id_lang, $id_shop);
+
+            case 'category':
+                $id = (int)Tools::getValue('id_category');
+                if (!$id) {
+                    return false;
+                }
+                $category = new Category($id, $id_lang, $id_shop);
+                if (!$this->isAvailable($category, $id_shop)) {
+                    return false;
+                }
+                return $this->addPaginationParameters(
+                    $link->getCategoryLink($category, null, $id_lang, null, $id_shop)
+                );
+
+            case 'cms':
+                $id_category = (int)Tools::getValue('id_cms_category');
+                $id = $id_category ? $id_category : (int)Tools::getValue('id_cms');
+                if (!$id) {
+                    return false;
+                }
+                $cms = $id_category ? new CMSCategory($id, $id_lang, $id_shop) : new CMS($id, $id_lang, $id_shop);
+                if (!$this->isAvailable($cms, $id_shop)) {
+                    return false;
+                }
+                return $id_category
+                    ? $link->getCMSCategoryLink($cms, null, $id_lang, $id_shop)
+                    : $link->getCMSLink($cms, null, null, $id_lang, $id_shop);
+
+            default:
+                $url = $link->getPageLink($controller, null, $id_lang, null, false, $id_shop);
+                return in_array($controller, array('best-sales', 'new-products', 'prices-drop'))
+                    ? $this->addPaginationParameters($url) : $url;
+        }
+    }
+
+    /**
+     * @param ObjectModel $object
+     * @param int $id_shop
+     * @return bool
+     */
+    protected function isAvailable($object, $id_shop)
+    {
+        return Validate::isLoadedObject($object) && $object->active
+            && $object->isAssociatedToShop($id_shop) && !empty($object->link_rewrite);
+    }
+
+    /**
+     * Keep listing alternates on the requested page, without tracking parameters.
+     * Match bnseourls' normalization of the current page and page size.
+     *
+     * @param string $url
+     * @return string
+     */
+    protected function addPaginationParameters($url)
+    {
+        $page = (int)Tools::getValue('p');
+        if ($page > 1) {
+            $url = Tools::url($url, 'p='.$page);
+        }
+        $size = (int)Tools::getValue('n');
+        $default_size = max(1, (int)Configuration::get('PS_PRODUCTS_PER_PAGE'));
+        if ($size >= 1 && $size !== $default_size) {
+            $url = Tools::url($url, 'n='.$size);
+        }
+        return $url;
     }
 
     /**
@@ -171,6 +226,9 @@ class BlockLanguages extends Module
 
     public function hookDisplayHeader($params)
     {
+        if (!empty($this->context->controller->errors)) {
+            return;
+        }
         $this->context->controller->addCSS($this->_path . 'views/css/blocklanguages.css', 'all');
         if (!$this->_prepareHook($params)) {
             return;
