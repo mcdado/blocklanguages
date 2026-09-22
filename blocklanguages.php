@@ -73,7 +73,10 @@ class BlockLanguages extends Module
             $lang_urls[$id_lang] = false;
             if (isset($shop_for_lang[$id_lang])) {
                 $lang_urls[$id_lang] = $this->getAlternateUrl(
-                    $link, $controller, $id_lang, $shop_for_lang[$id_lang]
+                    $link,
+                    $controller,
+                    $id_lang,
+                    $shop_for_lang[$id_lang]
                 );
             }
         }
@@ -93,9 +96,9 @@ class BlockLanguages extends Module
     protected function getLanguageShops()
     {
         $rows = Db::getInstance()->executeS(
-            'SELECT l.`id_lang`, ls.`id_shop` FROM `'._DB_PREFIX_.'lang` l
-            JOIN `'._DB_PREFIX_.'lang_shop` ls ON ls.`id_lang` = l.`id_lang`
-            JOIN `'._DB_PREFIX_.'shop` s ON s.`id_shop` = ls.`id_shop`
+            'SELECT l.`id_lang`, ls.`id_shop` FROM `' . _DB_PREFIX_ . 'lang` l
+            JOIN `' . _DB_PREFIX_ . 'lang_shop` ls ON ls.`id_lang` = l.`id_lang`
+            JOIN `' . _DB_PREFIX_ . 'shop` s ON s.`id_shop` = ls.`id_shop`
             WHERE l.`active` = 1 AND s.`active` = 1 AND s.`deleted` = 0
             ORDER BY l.`id_lang`, ls.`id_shop`'
         );
@@ -195,12 +198,12 @@ class BlockLanguages extends Module
     {
         $page = (int)Tools::getValue('p');
         if ($page > 1) {
-            $url = Tools::url($url, 'p='.$page);
+            $url = Tools::url($url, 'p=' . $page);
         }
         $size = (int)Tools::getValue('n');
         $default_size = max(1, (int)Configuration::get('PS_PRODUCTS_PER_PAGE'));
         if ($size >= 1 && $size !== $default_size) {
-            $url = Tools::url($url, 'n='.$size);
+            $url = Tools::url($url, 'n=' . $size);
         }
         return $url;
     }
@@ -227,8 +230,10 @@ class BlockLanguages extends Module
     public function hookDisplayHeader($params)
     {
         // PageNotFoundController returns HTTP 404 without populating errors.
-        if ($this->context->controller->php_self === 'pagenotfound'
-            || !empty($this->context->controller->errors)) {
+        if (
+            $this->context->controller->php_self === 'pagenotfound'
+            || !empty($this->context->controller->errors)
+        ) {
             return;
         }
         $this->context->controller->addCSS($this->_path . 'views/css/blocklanguages.css', 'all');

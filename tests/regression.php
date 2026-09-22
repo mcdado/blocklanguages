@@ -1,28 +1,33 @@
 <?php
-require __DIR__.'/bootstrap.php';
-require dirname(__DIR__).'/blocklanguages.php';
+require __DIR__ . '/bootstrap.php';
+require dirname(__DIR__) . '/blocklanguages.php';
 class TestBlockLanguages extends BlockLanguages
 {
     public $context, $smarty;
-    public function __construct() {
+    public function __construct()
+    {
         $this->smarty = new FixtureSmarty();
         $this->context = (object)array('smarty' => $this->smarty, 'controller' => (object)array('php_self' => 'product', 'errors' => array()), 'shop' => (object)array('id' => 1));
         Context::$current = $this->context;
     }
-    public function urls($controller, $params, $shop = 1) {
+    public function urls($controller, $params, $shop = 1)
+    {
         $this->context->controller->php_self = $controller;
         $this->context->shop->id = $shop;
         Tools::$params = $params;
         $this->_prepareHook(array());
         return $this->smarty->values['lang_rewrite_urls'];
     }
-    public function shops() { return $this->getLanguageShops(); }
+    public function shops()
+    {
+        return $this->getLanguageShops();
+    }
 }
 $module = new TestBlockLanguages();
 foreach (array('product' => 'id_product', 'category' => 'id_category', 'cms' => 'id_cms') as $route => $parameter) {
     $first = $module->urls($route, array($parameter => 230));
     foreach (array(2, 3) as $shop) {
-        expectSame($first, $module->urls($route, array($parameter => 230), $shop), $route.' must produce reciprocal URLs independent of source shop');
+        expectSame($first, $module->urls($route, array($parameter => 230), $shop), $route . ' must produce reciprocal URLs independent of source shop');
     }
 }
 $urls = $module->urls('product', array('id_product' => 230));
@@ -39,8 +44,8 @@ expectSame(false, $module->urls('product', array())[2], 'Missing product ID must
 expectSame('https://example.test/fr/pages/cmscategory-5-2-2-5/', $module->urls('cms', array('id_cms_category' => 5))[2], 'CMS category uses destination shop');
 foreach (array('best-sales' => 'bestsales', 'new-products' => 'newproducts') as $route => $dispatcher) {
     Dispatcher::$controller = $dispatcher;
-    expectSame('https://example.test/fr/'.$route.'?p=9&n=20', $module->urls($route, array('p' => 9, 'n' => 20, 'utm_source' => 'audit'))[2], 'Canonical route with pagination, no tracking');
-    expectSame('https://example.test/fr/'.$route, $module->urls($route, array('p' => 1, 'n' => 10))[2], 'Default pagination omitted');
+    expectSame('https://example.test/fr/' . $route . '?p=9&n=20', $module->urls($route, array('p' => 9, 'n' => 20, 'utm_source' => 'audit'))[2], 'Canonical route with pagination, no tracking');
+    expectSame('https://example.test/fr/' . $route, $module->urls($route, array('p' => 1, 'n' => 10))[2], 'Default pagination omitted');
 }
 expectSame('https://example.test/fr/category-54-2-2-54/?p=2', $module->urls('category', array('id_category' => 54, 'p' => 2))[2], 'Category pagination preserved');
 Configuration::$rewriting = 0;
