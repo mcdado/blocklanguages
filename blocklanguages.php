@@ -151,6 +151,9 @@ class BlockLanguages extends Module
                 if (!$this->isAvailable($category, $id_shop)) {
                     return false;
                 }
+                if (!$this->categoryPageExists($id, $id_shop)) {
+                    return false;
+                }
                 return $this->addPaginationParameters(
                     $link->getCategoryLink($category, null, $id_lang, null, $id_shop)
                 );
@@ -185,6 +188,37 @@ class BlockLanguages extends Module
     {
         return Validate::isLoadedObject($object) && $object->active
             && $object->isAssociatedToShop($id_shop) && !empty($object->link_rewrite);
+    }
+
+    /**
+     * A translated category may have fewer catalog products than the source.
+     * Count in the target shop explicitly, without changing the global context.
+     */
+    protected function categoryPageExists($id_category, $id_shop)
+    {
+        $page = (int)Tools::getValue('p');
+        if ($page < 2) {
+            return true;
+        }
+
+        $total = Db::getInstance()->getValue(
+            'SELECT COUNT(*) FROM `' . _DB_PREFIX_ . 'category_product` cp
+            INNER JOIN `' . _DB_PREFIX_ . 'product_shop` ps ON ps.`id_product` = cp.`id_product`
+            WHERE cp.`id_category` = ' . (int)$id_category . '
+            AND ps.`id_shop` = ' . (int)$id_shop . '
+            AND ps.`active` = 1 AND ps.`visibility` IN ("both", "catalog")'
+        );
+        if ($total === false) {
+            return false;
+        }
+
+        // Match FrontController::pagination for a fresh visit to the target URL.
+        $default_size = max(1, (int)Configuration::get('PS_PRODUCTS_PER_PAGE', null, null, $id_shop));
+        $size = (int)Tools::getValue('n');
+        if (!in_array($size, array($default_size, $default_size * 2, $default_size * 5, (int)$total)) || $size < 1) {
+            $size = $default_size;
+        }
+        return (int)$total > ($page - 1) * $size;
     }
 
     /**

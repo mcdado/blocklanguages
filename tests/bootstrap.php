@@ -13,6 +13,7 @@ class Language
 }
 class Db
 {
+    public static $productTotals = array(1 => 21, 2 => 21, 3 => 21);
     public static $rows = array(array('id_lang' => 2, 'id_shop' => 2), array('id_lang' => 3, 'id_shop' => 1), array('id_lang' => 4, 'id_shop' => 3));
     public static function getInstance()
     {
@@ -21,6 +22,13 @@ class Db
     public function executeS($sql)
     {
         return self::$rows;
+    }
+    public function getValue($sql)
+    {
+        if (!preg_match('/ps\.`id_shop` = (\d+)/', $sql, $match)) {
+            throw new RuntimeException('Product count requires an explicit target shop');
+        }
+        return self::$productTotals[(int)$match[1]];
     }
 }
 class Tools

@@ -48,6 +48,18 @@ foreach (array('best-sales' => 'bestsales', 'new-products' => 'newproducts') as 
     expectSame('https://example.test/fr/' . $route, $module->urls($route, array('p' => 1, 'n' => 10))[2], 'Default pagination omitted');
 }
 expectSame('https://example.test/fr/category-54-2-2-54/?p=2', $module->urls('category', array('id_category' => 54, 'p' => 2))[2], 'Category pagination preserved');
+Db::$productTotals[2] = 10;
+$pageTwo = $module->urls('category', array('id_category' => 54, 'p' => 2));
+expectSame(false, $pageTwo[2], 'Do not advertise a French page that redirects to page one');
+expectSame('https://example.test/es/category-54-3-4-54/?p=2', $pageTwo[4], 'Keep the Spanish page that exists');
+Db::$productTotals[2] = 11;
+expectSame('https://example.test/fr/category-54-2-2-54/?p=2', $module->urls('category', array('id_category' => 54, 'p' => 2))[2], 'One product on page two is enough');
+expectSame(false, $module->urls('category', array('id_category' => 54, 'p' => 2, 'n' => 20))[2], 'Respect accepted page sizes');
+expectSame('https://example.test/fr/category-54-2-2-54/?p=2&n=7', $module->urls('category', array('id_category' => 54, 'p' => 2, 'n' => 7))[2], 'Invalid size falls back to default for page availability');
+Db::$productTotals[2] = 0;
+expectSame(false, $module->urls('category', array('id_category' => 54, 'p' => 2))[2], 'No alternate to an empty translated page two');
+expectSame('https://example.test/fr/category-54-2-2-54/', $module->urls('category', array('id_category' => 54))[2], 'Page one behavior unchanged');
+Db::$productTotals[2] = 21;
 Configuration::$rewriting = 0;
 expectSame($urls, $module->urls('product', array('id_product' => 230)), 'Availability and target selection do not depend on URL rewriting');
 Db::$rows = array(array('id_lang' => 2, 'id_shop' => 1), array('id_lang' => 2, 'id_shop' => 2), array('id_lang' => 3, 'id_shop' => 1));
