@@ -1,0 +1,6 @@
+schema = 1
+
+[composer]
+# composer.json has no runtime dependencies and the module never loads
+# vendor/autoload.php; installing would only ship an unused vendor/.
+enabled = false
